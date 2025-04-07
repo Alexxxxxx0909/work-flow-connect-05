@@ -1,4 +1,6 @@
+
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+// Using UserType from AuthContext to ensure compatibility
 import { UserType } from './AuthContext';
 
 export type ReplyType = {
