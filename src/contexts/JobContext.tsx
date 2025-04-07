@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { UserType } from './AuthContext';
 
@@ -143,6 +142,7 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
   }, []);
 
   const createJob = async (jobData: Omit<JobType, 'id' | 'timestamp' | 'comments' | 'likes'>) => {
+    // Create a new job with necessary defaults
     const newJob: JobType = {
       ...jobData,
       id: `job_${Date.now()}`,
@@ -151,9 +151,11 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
       likes: []
     };
 
-    setJobs(prevJobs => [...prevJobs, newJob]);
+    // Add the new job to our jobs state
+    setJobs(prevJobs => [newJob, ...prevJobs]);
     
-    // En un caso real, aquí guardaríamos el trabajo en Firebase
+    // In a real app, here we would save the job to a database
+    return newJob;
   };
 
   const addComment = async (jobId: string, content: string, user: UserType) => {
@@ -174,7 +176,7 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
         : job
     ));
     
-    // En un caso real, aquí guardaríamos el comentario en Firebase
+    // In a real app, here we would save the comment to a database
   };
 
   const addReplyToComment = async (jobId: string, commentId: string, content: string, user: UserType) => {
@@ -201,7 +203,7 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
       };
     }));
     
-    // En un caso real, aquí guardaríamos la respuesta en Firebase
+    // In a real app, here we would save the reply to a database
   };
 
   const getJob = (jobId: string) => {
@@ -215,7 +217,7 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
       setSavedJobs(prev => [...prev, jobId]);
     }
     
-    // En un caso real, aquí actualizaríamos la base de datos
+    // In a real app, here we would update the database
   };
 
   const getSavedJobs = (userId: string) => {
@@ -236,7 +238,7 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
       };
     }));
     
-    // En un caso real, aquí actualizaríamos la base de datos
+    // In a real app, here we would update the database
   };
 
   return (

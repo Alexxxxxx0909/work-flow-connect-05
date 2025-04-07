@@ -1,5 +1,4 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { toast } from "@/components/ui/use-toast";
 
 export type UserType = {
   id: string;
@@ -7,18 +6,19 @@ export type UserType = {
   email: string;
   photoURL?: string;
   bio?: string;
-  skills?: string[];
-  role: 'freelancer' | 'client'; // Added role property
+  skills: string[];
+  role: 'freelancer' | 'client'; // Ensure role is properly typed
 };
 
-interface AuthContextType {
+type AuthContextType = {
   currentUser: UserType | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUserProfile: (data: Partial<UserType>) => Promise<void>;
-}
+  isLoggedIn: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<UserType | undefined>;
+  register: (name: string, email: string, password: string, role: 'freelancer' | 'client') => Promise<UserType | undefined>;
+  logout: () => void;
+  updateUserProfile: (updates: Partial<Omit<UserType, 'id' | 'email'>>) => Promise<void>;
+};
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -34,146 +34,108 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Simulación de datos de usuario para desarrollo
-const MOCK_USERS = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    password: 'password123',
-    photoURL: '/assets/avatars/avatar-1.png',
-    bio: 'Desarrollador Full Stack con 5 años de experiencia',
-    skills: ['React', 'Node.js', 'Firebase'],
-    role: 'freelancer'
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    password: 'password123',
-    photoURL: '/assets/avatars/avatar-2.png',
-    bio: 'Diseñadora UX/UI especializada en experiencias móviles',
-    skills: ['UI Design', 'Figma', 'Sketch'],
-    role: 'client'
-  }
-];
-
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Simular verificación de sesión al cargar
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+    const storedUser = localStorage.getItem('wfc_user');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+      setIsLoggedIn(true);
     }
-    setLoading(false);
+    setIsLoading(false);
   }, []);
 
+  // Fix the login function to use proper role type
   const login = async (email: string, password: string) => {
-    setLoading(true);
+    setIsLoading(true);
     try {
-      // Simular verificación de credenciales
-      const user = MOCK_USERS.find(user => user.email === email && user.password === password);
-      
-      if (!user) {
-        throw new Error('Credenciales incorrectas');
-      }
-      
-      // Omitir la contraseña al guardar el usuario
-      const { password: _, ...userWithoutPassword } = user;
-      setCurrentUser(userWithoutPassword);
-      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-      toast({
-        title: "Inicio de sesión exitoso",
-        description: "Bienvenido a WorkFlowConnect",
-      });
+      // Simulate API call for login
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    
+      // Mock user data
+      const userData: UserType = {
+        id: '1',
+        name: 'John Doe',
+        email,
+        photoURL: '/assets/avatars/avatar-1.png',
+        bio: 'Desarrollador Full Stack con 5 años de experiencia en React y Node.js.',
+        skills: ['React', 'Node.js', 'TypeScript'],
+        role: 'freelancer' // Must be 'freelancer' or 'client'
+      };
+    
+      setCurrentUser(userData);
+      setIsLoggedIn(true);
+      localStorage.setItem('wfc_user', JSON.stringify(userData));
+      return userData;
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error de inicio de sesión",
-        description: error instanceof Error ? error.message : "Error al iniciar sesión",
-      });
+      console.error('Login error:', error);
       throw error;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    setLoading(true);
+  const register = async (name: string, email: string, password: string, role: 'freelancer' | 'client') => {
+    setIsLoading(true);
     try {
-      // Verificar si el usuario ya existe
-      if (MOCK_USERS.some(user => user.email === email)) {
-        throw new Error('Este correo ya está registrado');
-      }
-      
-      // Crear nuevo usuario (simulación)
-      const newUser = {
-        id: `${MOCK_USERS.length + 1}`,
+      // Simulate API call for registration
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    
+      // Mock user data
+      const userData: UserType = {
+        id: Date.now().toString(),
         name,
         email,
-        photoURL: undefined,
+        photoURL: '',
         bio: '',
         skills: [],
-        role: 'freelancer'
+        role // This is now properly typed
       };
-      
-      // Actualizar el contexto
-      setCurrentUser(newUser);
-      localStorage.setItem('currentUser', JSON.stringify(newUser));
-      toast({
-        title: "Registro exitoso",
-        description: "¡Bienvenido a WorkFlowConnect!",
-      });
+    
+      setCurrentUser(userData);
+      setIsLoggedIn(true);
+      localStorage.setItem('wfc_user', JSON.stringify(userData));
+      return userData;
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error de registro",
-        description: error instanceof Error ? error.message : "Error al registrar",
-      });
+      console.error('Registration error:', error);
       throw error;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const logout = async () => {
+  const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    toast({
-      title: "Sesión cerrada",
-      description: "Has cerrado sesión correctamente",
-    });
+    setIsLoggedIn(false);
+    localStorage.removeItem('wfc_user');
   };
 
-  const updateUserProfile = async (data: Partial<UserType>) => {
-    if (!currentUser) throw new Error('No hay usuario autenticado');
-    
-    const updatedUser = { ...currentUser, ...data };
+  const updateUserProfile = async (updates: Partial<Omit<UserType, 'id' | 'email'>>) => {
+    if (!currentUser) {
+      throw new Error('No user logged in');
+    }
+
+    const updatedUser: UserType = { ...currentUser, ...updates } as UserType;
     setCurrentUser(updatedUser);
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-    toast({
-      title: "Perfil actualizado",
-      description: "Tus cambios han sido guardados",
-    });
+    localStorage.setItem('wfc_user', JSON.stringify(updatedUser));
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        currentUser, 
-        loading, 
-        login, 
-        register, 
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        isLoggedIn,
+        isLoading,
+        login,
+        register,
         logout,
-        updateUserProfile
+        updateUserProfile,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
-
-export default AuthContext;
