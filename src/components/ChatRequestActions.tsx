@@ -13,7 +13,7 @@ export const ChatRequestActions: React.FC<ChatRequestActionsProps> = ({ chatId }
 
   return (
     <div className="flex flex-col p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-      <p className="text-sm text-center mb-4">
+      <p className="text-sm text-center mb-4 dark:text-gray-300">
         Alguien quiere iniciar una conversación contigo. ¿Aceptas esta solicitud?
       </p>
       <div className="flex justify-center space-x-2">

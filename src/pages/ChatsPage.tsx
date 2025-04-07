@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '@/components/Layout/MainLayout';
 import { useChat } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,11 +11,26 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Plus, UserPlus, Users, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  Send, 
+  Plus, 
+  UserPlus, 
+  Users, 
+  Search, 
+  ChevronLeft, 
+  ChevronRight,
+  PaperclipIcon,
+  Pin,
+  FileImage,
+  FileAudio,
+  FileText,
+  File
+} from 'lucide-react';
 import { ChatGroupForm } from '@/components/ChatGroupForm';
 import { toast } from '@/components/ui/use-toast';
 import { UserSearchDialog } from '@/components/UserSearchDialog';
 import { ChatRequestActions } from '@/components/ChatRequestActions';
+import { ChatActions } from '@/components/ChatActions';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 
 const ChatsPage = () => {
@@ -27,7 +41,14 @@ const ChatsPage = () => {
     sendMessage, 
     onlineUsers, 
     isChatApproved,
-    isChatRejected 
+    isChatRejected,
+    deleteChat,
+    toggleFavoriteChat,
+    pinMessage,
+    searchMessages,
+    sendFileMessage,
+    favoriteChats,
+    pinnedMessages
   } = useChat();
   const { currentUser } = useAuth();
   const { getUserById } = useData();
@@ -36,6 +57,10 @@ const ChatsPage = () => {
   const [isSearchingUser, setIsSearchingUser] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [searchResults, setSearchResults] = useState<{ messageId: string; content: string }[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Auto-scroll to bottom of messages when new message arrives
   useEffect(() => {
@@ -87,6 +112,28 @@ const ChatsPage = () => {
     sendMessage(activeChat.id, messageText);
     setMessageText('');
   };
+
+  const handleFileUpload = (file: File) => {
+    if (!activeChat) return;
+    sendFileMessage(activeChat.id, file);
+  };
+  
+  const handleSearchInChat = (query: string) => {
+    if (!activeChat) return;
+    
+    const results = searchMessages(activeChat.id, query);
+    
+    setSearchResults(results.map(msg => ({
+      messageId: msg.id,
+      content: msg.content
+    })));
+    
+    setShowSearchResults(true);
+  };
+  
+  const handleDeleteChat = (chatId: string) => {
+    deleteChat(chatId);
+  };
   
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
@@ -107,12 +154,47 @@ const ChatsPage = () => {
   
   const isUserOnline = (userId) => onlineUsers.includes(userId);
 
-  const filteredChats = chats.filter(chat => 
-    getChatName(chat).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter and sort chats: favorites first, then by last message time
+  const processedChats = () => {
+    // First, filter by search query if any
+    let filtered = chats.filter(chat => 
+      getChatName(chat).toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    
+    // Then sort: favorites first, then by last message timestamp (newest first)
+    return filtered.sort((a, b) => {
+      // If one is favorite and the other is not, favorite comes first
+      if (favoriteChats.includes(a.id) && !favoriteChats.includes(b.id)) return -1;
+      if (!favoriteChats.includes(a.id) && favoriteChats.includes(b.id)) return 1;
+      
+      // If both have last message, sort by timestamp (newer first)
+      if (a.lastMessage && b.lastMessage) {
+        return b.lastMessage.timestamp - a.lastMessage.timestamp;
+      }
+      
+      // If only one has last message, that one comes first
+      if (a.lastMessage) return -1;
+      if (b.lastMessage) return 1;
+      
+      // If neither has last message, keep original order
+      return 0;
+    });
+  };
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
+  };
+
+  // Function to get active chat's pinned messages
+  const getActiveChatPinnedMessages = () => {
+    if (!activeChat) return [];
+    
+    const now = Date.now();
+    
+    // Filter messages that are pinned and not expired
+    return activeChat.messages.filter(
+      msg => msg.isPinned && msg.pinnedUntil && msg.pinnedUntil > now
+    );
   };
   
   return (
@@ -124,7 +206,7 @@ const ChatsPage = () => {
             <Card className="h-full flex flex-col">
               <div className="p-4 border-b">
                 <div className="flex justify-between items-center mb-3">
-                  <h2 className="font-semibold text-lg">Mensajes</h2>
+                  <h2 className="font-semibold text-lg dark:text-white">Mensajes</h2>
                   <div className="flex space-x-2">
                     <TooltipProvider>
                       <Tooltip>
@@ -172,7 +254,7 @@ const ChatsPage = () => {
               </div>
               
               <ScrollArea className="flex-1">
-                {filteredChats.length === 0 ? (
+                {processedChats().length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-4">
                     {searchQuery ? (
                       <p className="text-gray-500 dark:text-gray-400">No se encontraron conversaciones</p>
@@ -192,12 +274,13 @@ const ChatsPage = () => {
                   </div>
                 ) : (
                   <div className="space-y-1 p-2">
-                    {filteredChats.map((chat) => (
+                    {processedChats().map((chat) => (
                       <div
                         key={chat.id}
                         className={`p-3 flex items-start space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors rounded-md
                           ${activeChat?.id === chat.id ? 'bg-wfc-purple/10 border-l-4 border-wfc-purple dark:bg-wfc-purple/20' : ''}
                           ${chat.pendingApproval && chat.participants[0] !== currentUser?.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}
+                          ${favoriteChats.includes(chat.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
                         `}
                         onClick={() => setActiveChat(chat)}
                       >
@@ -208,6 +291,13 @@ const ChatsPage = () => {
                               {getAvatarFallback(chat)}
                             </AvatarFallback>
                           </Avatar>
+                          {favoriteChats.includes(chat.id) && (
+                            <div className="absolute -top-1 -right-1 bg-amber-400 rounded-full p-0.5">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
                           {chat.isGroup ? (
                             <Badge className="absolute -top-1 -right-1 bg-wfc-purple p-0 min-w-[1.1rem] h-[1.1rem] flex items-center justify-center">
                               <Users className="h-3 w-3" />
@@ -266,34 +356,47 @@ const ChatsPage = () => {
             {activeChat ? (
               <>
                 {/* Chat header */}
-                <div className="p-4 border-b flex items-center space-x-3">
-                  {sidebarCollapsed && (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={toggleSidebar} 
-                      className="mr-2"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </Button>
-                  )}
-                  <Avatar>
-                    <AvatarImage src={getChatAvatar(activeChat)} />
-                    <AvatarFallback className="bg-wfc-purple-medium text-white">
-                      {getAvatarFallback(activeChat)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold truncate dark:text-white">{getChatName(activeChat)}</h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {activeChat.isGroup 
-                        ? `${activeChat.participants.length} participantes` 
-                        : isUserOnline(activeChat.participants.find((id) => id !== currentUser?.id))
-                          ? 'En línea'
-                          : 'Desconectado'
-                      }
-                    </p>
+                <div className="p-4 border-b flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {sidebarCollapsed && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={toggleSidebar} 
+                        className="mr-2"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </Button>
+                    )}
+                    <Avatar>
+                      <AvatarImage src={getChatAvatar(activeChat)} />
+                      <AvatarFallback className="bg-wfc-purple-medium text-white">
+                        {getAvatarFallback(activeChat)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-semibold truncate dark:text-white">{getChatName(activeChat)}</h2>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {activeChat.isGroup 
+                          ? `${activeChat.participants.length} participantes` 
+                          : isUserOnline(activeChat.participants.find((id) => id !== currentUser?.id))
+                            ? 'En línea'
+                            : 'Desconectado'
+                        }
+                      </p>
+                    </div>
                   </div>
+                  
+                  {/* Chat actions dropdown */}
+                  <ChatActions 
+                    chat={activeChat}
+                    onDelete={handleDeleteChat}
+                    onToggleFavorite={toggleFavoriteChat}
+                    onPinMessage={(messageId, duration) => pinMessage(activeChat.id, messageId, duration)}
+                    onSearchMessages={handleSearchInChat}
+                    onFileUpload={handleFileUpload}
+                    isFavorite={favoriteChats.includes(activeChat.id)}
+                  />
                 </div>
                 
                 {/* Display rejected message alert if relevant */}
@@ -302,6 +405,59 @@ const ChatsPage = () => {
                     <AlertTitle>Solicitud rechazada</AlertTitle>
                     <p>El usuario ha rechazado tu solicitud de chat.</p>
                   </Alert>
+                )}
+                
+                {/* Pinned messages area */}
+                {getActiveChatPinnedMessages().length > 0 && (
+                  <div className="bg-gray-50 dark:bg-gray-800/60 border-b p-2">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <Pin className="h-4 w-4 text-wfc-purple dark:text-wfc-purple-light" />
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Mensajes fijados</p>
+                    </div>
+                    <div className="space-y-1 max-h-20 overflow-y-auto">
+                      {getActiveChatPinnedMessages().map(pinnedMsg => (
+                        <div key={pinnedMsg.id} className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {getUserById(pinnedMsg.senderId)?.name || 'Usuario'} • {formatTime(pinnedMsg.timestamp)}
+                          </p>
+                          <p className="truncate dark:text-white">{pinnedMsg.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Search results */}
+                {showSearchResults && searchResults.length > 0 && (
+                  <div className="bg-gray-50 dark:bg-gray-800/60 border-b p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center space-x-2">
+                        <Search className="h-4 w-4 text-wfc-purple dark:text-wfc-purple-light" />
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                          {searchResults.length} resultados encontrados
+                        </p>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setShowSearchResults(false)}
+                        className="h-6 w-6 p-0"
+                      >
+                        &times;
+                      </Button>
+                    </div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {searchResults.map((result, index) => (
+                        <div key={index} className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border">
+                          <p className="dark:text-white">
+                            {result.content.length > 100 
+                              ? `${result.content.substring(0, 100)}...` 
+                              : result.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
                 
                 {/* Messages */}
@@ -346,15 +502,43 @@ const ChatsPage = () => {
                                 {!isCurrentUser && activeChat.isGroup && (
                                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{sender?.name}</p>
                                 )}
+                                
                                 <div 
                                   className={`rounded-lg px-4 py-2 inline-block
+                                    ${message.isPinned ? 'border-2 border-amber-300 dark:border-amber-500' : ''}
                                     ${isCurrentUser 
                                       ? 'bg-wfc-purple text-white rounded-tr-none' 
                                       : 'bg-gray-100 dark:bg-gray-700 rounded-tl-none dark:text-white'}
                                   `}
                                 >
-                                  <p className="break-words">{message.content}</p>
+                                  {message.fileUrl ? (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center space-x-2">
+                                        {message.fileType?.includes('image') ? (
+                                          <FileImage className="h-5 w-5" />
+                                        ) : message.fileType?.includes('audio') ? (
+                                          <FileAudio className="h-5 w-5" />
+                                        ) : message.fileType?.includes('text') || message.fileType?.includes('document') ? (
+                                          <FileText className="h-5 w-5" />
+                                        ) : (
+                                          <File className="h-5 w-5" />
+                                        )}
+                                        <span className="text-sm font-medium truncate">{message.fileName}</span>
+                                      </div>
+                                      <a 
+                                        href={message.fileUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-xs underline block truncate"
+                                      >
+                                        Descargar archivo
+                                      </a>
+                                    </div>
+                                  ) : (
+                                    <p className="break-words">{message.content}</p>
+                                  )}
                                 </div>
+                                
                                 <p className="text-xs text-gray-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   {formatTime(message.timestamp)}
                                 </p>
@@ -395,6 +579,14 @@ const ChatsPage = () => {
                         disabled={activeChat.pendingApproval && !isChatApproved(activeChat.id)}
                       />
                       <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={activeChat.pendingApproval && !isChatApproved(activeChat.id)}
+                        className="bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
+                      >
+                        <PaperclipIcon className="h-4 w-4" />
+                      </Button>
+                      <Button
                         onClick={handleSendMessage}
                         disabled={!messageText.trim() || (activeChat.pendingApproval && !isChatApproved(activeChat.id))}
                         className="bg-wfc-purple hover:bg-wfc-purple-medium dark:bg-wfc-purple dark:hover:bg-wfc-purple-medium"
@@ -402,6 +594,21 @@ const ChatsPage = () => {
                         <Send className="h-4 w-4" />
                       </Button>
                     </div>
+                    
+                    {/* Hidden file input */}
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      style={{ display: 'none' }} 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleFileUpload(file);
+                          e.target.value = '';
+                        }
+                      }}
+                      accept=".doc,.docx,.pdf,.txt,.mp3,.mp4,.zip,.rar,.jpg,.jpeg,.png,.gif"
+                    />
                   </div>
                 )}
               </>

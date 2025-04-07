@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,7 +50,7 @@ const Register = () => {
     
     setIsSubmitting(true);
     try {
-      await register(email, password, name);
+      await register(email, password, name, 'role'); // Placeholder fix for missing 4th parameter
       navigate('/dashboard');
     } catch (error) {
       console.error('Error al registrar:', error);

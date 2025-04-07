@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '@/components/ui/use-toast';
@@ -8,6 +7,11 @@ export type MessageType = {
   senderId: string;
   content: string;
   timestamp: number;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  isPinned?: boolean;
+  pinnedUntil?: number;
 };
 
 export type ChatType = {
@@ -19,6 +23,7 @@ export type ChatType = {
   lastMessage?: MessageType;
   pendingApproval?: boolean; // Para solicitudes de chat pendientes
   rejected?: boolean; // Para solicitudes rechazadas
+  isFavorite?: boolean; // Para chats favoritos
 };
 
 interface ChatContextType {
@@ -35,6 +40,13 @@ interface ChatContextType {
   rejectChat: (chatId: string) => void; // Rechazar solicitud
   isChatApproved: (chatId: string) => boolean; // Verificar si el chat está aprobado
   isChatRejected: (chatId: string) => boolean; // Verificar si el chat está rechazado
+  deleteChat: (chatId: string) => void; // Eliminar chat
+  toggleFavoriteChat: (chatId: string) => void; // Marcar/desmarcar chat como favorito
+  pinMessage: (chatId: string, messageId: string, duration: string) => void; // Fijar mensaje
+  searchMessages: (chatId: string, query: string) => MessageType[]; // Buscar mensajes
+  sendFileMessage: (chatId: string, file: File) => Promise<void>; // Enviar mensaje con archivo
+  favoriteChats: string[]; // IDs de chats marcados como favoritos
+  pinnedMessages: Record<string, MessageType[]>; // Mensajes fijados por chat
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -214,6 +226,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [activeChat, setActiveChat] = useState<ChatType | null>(null);
   const [loadingChats, setLoadingChats] = useState(true);
   const [onlineUsers] = useState<string[]>(MOCK_ONLINE_USERS);
+  const [favoriteChats, setFavoriteChats] = useState<string[]>([]);
+  const [pinnedMessages, setPinnedMessages] = useState<Record<string, MessageType[]>>({});
 
   // Cargar chats al iniciar
   useEffect(() => {
@@ -276,6 +290,39 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
     
     // En un caso real, aquí enviaríamos el mensaje a Firebase y notificaríamos con Socket.io
+  };
+
+  // Función para enviar mensajes con archivos adjuntos
+  const sendFileMessage = async (chatId: string, file: File) => {
+    if (!currentUser) return;
+    
+    // En un caso real, aquí subiríamos el archivo a un servicio de almacenamiento 
+    // y obtendríamos la URL
+    const fakeUploadUrl = `https://storage.example.com/files/${file.name}`;
+    
+    // Crear el mensaje con la información del archivo
+    const fileMessage: MessageType = {
+      id: `msg_${Date.now()}`,
+      senderId: currentUser.id,
+      content: `[Archivo adjunto] ${file.name}`,
+      timestamp: Date.now(),
+      fileUrl: fakeUploadUrl,
+      fileName: file.name,
+      fileType: file.type
+    };
+    
+    setChats(prevChats => {
+      return prevChats.map(chat => {
+        if (chat.id === chatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, fileMessage],
+            lastMessage: fileMessage
+          };
+        }
+        return chat;
+      });
+    });
   };
 
   // Función para crear un nuevo chat
@@ -386,6 +433,119 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
   };
 
+  // Delete chat
+  const deleteChat = (chatId: string) => {
+    setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
+    
+    // If the active chat is being deleted, set it to null
+    if (activeChat && activeChat.id === chatId) {
+      setActiveChat(null);
+    }
+    
+    // Remove from favorites if present
+    if (favoriteChats.includes(chatId)) {
+      setFavoriteChats(prev => prev.filter(id => id !== chatId));
+    }
+    
+    // Remove any pinned messages from this chat
+    if (pinnedMessages[chatId]) {
+      const newPinnedMessages = { ...pinnedMessages };
+      delete newPinnedMessages[chatId];
+      setPinnedMessages(newPinnedMessages);
+    }
+    
+    toast({
+      title: "Chat eliminado",
+      description: "La conversación ha sido eliminada permanentemente."
+    });
+  };
+
+  // Toggle favorite chat
+  const toggleFavoriteChat = (chatId: string) => {
+    const isFavorite = favoriteChats.includes(chatId);
+    
+    if (isFavorite) {
+      setFavoriteChats(prev => prev.filter(id => id !== chatId));
+      toast({
+        title: "Chat eliminado de favoritos",
+        description: "La conversación ha sido eliminada de tus favoritos."
+      });
+    } else {
+      setFavoriteChats(prev => [...prev, chatId]);
+      toast({
+        title: "Chat añadido a favoritos",
+        description: "La conversación ha sido añadida a tus favoritos."
+      });
+    }
+    
+    // Update the chat object to reflect favorite status
+    setChats(prevChats => prevChats.map(chat => {
+      if (chat.id === chatId) {
+        return { ...chat, isFavorite: !isFavorite };
+      }
+      return chat;
+    }));
+  };
+
+  // Pin message
+  const pinMessage = (chatId: string, messageId: string, duration: string) => {
+    // Convert duration string to milliseconds
+    const durationMap = {
+      '1h': 60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '3d': 3 * 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000
+    };
+    
+    const durationMs = durationMap[duration as keyof typeof durationMap];
+    const pinnedUntil = Date.now() + durationMs;
+    
+    // Update the message in chats
+    setChats(prevChats => {
+      return prevChats.map(chat => {
+        if (chat.id === chatId) {
+          const updatedMessages = chat.messages.map(msg => {
+            if (msg.id === messageId) {
+              return { ...msg, isPinned: true, pinnedUntil };
+            }
+            return msg;
+          });
+          
+          return { ...chat, messages: updatedMessages };
+        }
+        return chat;
+      });
+    });
+    
+    // Add to pinned messages
+    const chat = getChat(chatId);
+    if (chat) {
+      const message = chat.messages.find(msg => msg.id === messageId);
+      if (message) {
+        const pinnedMessage = { ...message, isPinned: true, pinnedUntil };
+        
+        setPinnedMessages(prev => {
+          const chatPinnedMessages = prev[chatId] || [];
+          return {
+            ...prev,
+            [chatId]: [...chatPinnedMessages, pinnedMessage]
+          };
+        });
+      }
+    }
+  };
+
+  // Search messages
+  const searchMessages = (chatId: string, query: string): MessageType[] => {
+    const chat = getChat(chatId);
+    if (!chat || !query.trim()) return [];
+    
+    const lowercaseQuery = query.toLowerCase();
+    return chat.messages.filter(msg => 
+      msg.content.toLowerCase().includes(lowercaseQuery)
+    );
+  };
+
   return (
     <ChatContext.Provider
       value={{
@@ -401,7 +561,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         approveChat,
         rejectChat,
         isChatApproved,
-        isChatRejected
+        isChatRejected,
+        deleteChat,
+        toggleFavoriteChat,
+        pinMessage,
+        searchMessages,
+        sendFileMessage,
+        favoriteChats,
+        pinnedMessages
       }}
     >
       {children}

@@ -41,7 +41,9 @@ export type JobType = {
 type JobContextType = {
   jobs: JobType[];
   loading: boolean;
-  createJob: (jobData: Omit<JobType, 'id' | 'timestamp' | 'comments' | 'likes'>) => Promise<void>;
+  createJob: (jobData: Omit<JobType, 'id' | 'timestamp' | 'comments' | 'likes'>) => Promise<JobType>;
+  updateJob: (jobId: string, jobData: Partial<JobType>) => Promise<JobType>;
+  deleteJob: (jobId: string) => Promise<void>;
   addComment: (jobId: string, content: string, user: UserType) => Promise<void>;
   addReplyToComment: (jobId: string, commentId: string, content: string, user: UserType) => Promise<void>;
   getJob: (jobId: string) => JobType | undefined;
@@ -158,6 +160,40 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
     return newJob;
   };
 
+  const updateJob = async (jobId: string, jobData: Partial<JobType>) => {
+    // Find the job to update
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) {
+      throw new Error('Job not found');
+    }
+
+    // Update the job
+    const updatedJob: JobType = {
+      ...job,
+      ...jobData,
+    };
+
+    // Update jobs state
+    setJobs(prevJobs => 
+      prevJobs.map(j => j.id === jobId ? updatedJob : j)
+    );
+
+    // In a real app, here we would update the job in the database
+    return updatedJob;
+  };
+
+  const deleteJob = async (jobId: string) => {
+    // Remove job from state
+    setJobs(prevJobs => prevJobs.filter(job => job.id !== jobId));
+    
+    // Also remove from saved jobs if it's saved
+    if (savedJobs.includes(jobId)) {
+      setSavedJobs(prev => prev.filter(id => id !== jobId));
+    }
+    
+    // In a real app, here we would delete the job from the database
+  };
+
   const addComment = async (jobId: string, content: string, user: UserType) => {
     const newComment: CommentType = {
       id: `comment_${Date.now()}`,
@@ -247,6 +283,8 @@ export const JobProvider: React.FC<JobProviderProps> = ({ children }) => {
         jobs,
         loading,
         createJob,
+        updateJob,
+        deleteJob,
         addComment,
         addReplyToComment,
         getJob,
