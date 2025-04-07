@@ -57,18 +57,16 @@ const ChatsPage = () => {
   const [isSearchingUser, setIsSearchingUser] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [searchResults, setSearchResults] = useState<{ messageId: string; content: string }[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchResults, setSearchResults] = useState<{ messageId: string; content: string }[]>([]);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement>>({});
   
   // Auto-scroll to bottom of messages when new message arrives
   useEffect(() => {
-    if (activeChat) {
-      const messagesContainer = document.getElementById('messages-container');
-      if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      }
+    if (activeChat && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [activeChat?.messages.length]);
   
@@ -119,7 +117,7 @@ const ChatsPage = () => {
   };
   
   const handleSearchInChat = (query: string) => {
-    if (!activeChat) return;
+    if (!activeChat) return [];
     
     const results = searchMessages(activeChat.id, query);
     
@@ -128,7 +126,22 @@ const ChatsPage = () => {
       content: msg.content
     })));
     
-    setShowSearchResults(true);
+    setShowSearchResults(results.length > 0);
+    return results;
+  };
+
+  // Function to scroll to a specific message
+  const scrollToMessage = (messageId: string) => {
+    setHighlightedMessageId(messageId);
+    
+    if (messageRefs.current[messageId]) {
+      messageRefs.current[messageId].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Remove highlight after animation
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 3000);
+    }
   };
   
   const handleDeleteChat = (chatId: string) => {
@@ -153,6 +166,11 @@ const ChatsPage = () => {
   };
   
   const isUserOnline = (userId) => onlineUsers.includes(userId);
+
+  // Handle emoji insertion
+  const handleInsertEmoji = (emoji: string) => {
+    setMessageText(prev => prev + emoji);
+  };
 
   // Filter and sort chats: favorites first, then by last message time
   const processedChats = () => {
@@ -395,7 +413,9 @@ const ChatsPage = () => {
                     onPinMessage={(messageId, duration) => pinMessage(activeChat.id, messageId, duration)}
                     onSearchMessages={handleSearchInChat}
                     onFileUpload={handleFileUpload}
+                    onInsertEmoji={handleInsertEmoji}
                     isFavorite={favoriteChats.includes(activeChat.id)}
+                    scrollToMessage={scrollToMessage}
                   />
                 </div>
                 
@@ -416,7 +436,11 @@ const ChatsPage = () => {
                     </div>
                     <div className="space-y-1 max-h-20 overflow-y-auto">
                       {getActiveChatPinnedMessages().map(pinnedMsg => (
-                        <div key={pinnedMsg.id} className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border">
+                        <div 
+                          key={pinnedMsg.id} 
+                          className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border cursor-pointer"
+                          onClick={() => scrollToMessage(pinnedMsg.id)}
+                        >
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {getUserById(pinnedMsg.senderId)?.name || 'Usuario'} • {formatTime(pinnedMsg.timestamp)}
                           </p>
@@ -448,7 +472,11 @@ const ChatsPage = () => {
                     </div>
                     <div className="space-y-1 max-h-40 overflow-y-auto">
                       {searchResults.map((result, index) => (
-                        <div key={index} className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border">
+                        <div 
+                          key={index} 
+                          className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border cursor-pointer"
+                          onClick={() => scrollToMessage(result.messageId)}
+                        >
                           <p className="dark:text-white">
                             {result.content.length > 100 
                               ? `${result.content.substring(0, 100)}...` 
@@ -461,7 +489,9 @@ const ChatsPage = () => {
                 )}
                 
                 {/* Messages */}
-                <ScrollArea id="messages-container" className="flex-1 p-4">
+                <ScrollArea 
+                  className="flex-1 p-4"
+                  ref={messagesContainerRef}>
                   {activeChat.messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center">
                       <p className="text-gray-500 dark:text-gray-400">No hay mensajes aún</p>
@@ -488,7 +518,12 @@ const ChatsPage = () => {
                               </div>
                             )}
                             
-                            <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} group`}>
+                            <div 
+                              className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} group`}
+                              ref={el => {
+                                if (el) messageRefs.current[message.id] = el;
+                              }}
+                            >
                               {!isCurrentUser && (
                                 <Avatar className="h-8 w-8 mr-2 mt-1">
                                   <AvatarImage src={sender?.photoURL} />
@@ -504,8 +539,11 @@ const ChatsPage = () => {
                                 )}
                                 
                                 <div 
-                                  className={`rounded-lg px-4 py-2 inline-block
+                                  className={`rounded-lg px-4 py-2 inline-block transition-all duration-300
                                     ${message.isPinned ? 'border-2 border-amber-300 dark:border-amber-500' : ''}
+                                    ${highlightedMessageId === message.id 
+                                      ? 'ring-4 ring-wfc-purple ring-opacity-50 shadow-lg scale-105' 
+                                      : ''}
                                     ${isCurrentUser 
                                       ? 'bg-wfc-purple text-white rounded-tr-none' 
                                       : 'bg-gray-100 dark:bg-gray-700 rounded-tl-none dark:text-white'}
@@ -586,6 +624,19 @@ const ChatsPage = () => {
                       >
                         <PaperclipIcon className="h-4 w-4" />
                       </Button>
+                      
+                      <ChatActions 
+                        chat={activeChat}
+                        onDelete={handleDeleteChat}
+                        onToggleFavorite={toggleFavoriteChat}
+                        onPinMessage={(messageId, duration) => pinMessage(activeChat.id, messageId, duration)}
+                        onSearchMessages={handleSearchInChat}
+                        onFileUpload={handleFileUpload}
+                        onInsertEmoji={handleInsertEmoji}
+                        isFavorite={favoriteChats.includes(activeChat.id)}
+                        scrollToMessage={scrollToMessage}
+                      />
+                      
                       <Button
                         onClick={handleSendMessage}
                         disabled={!messageText.trim() || (activeChat.pendingApproval && !isChatApproved(activeChat.id))}

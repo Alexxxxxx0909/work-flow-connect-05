@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -40,19 +40,26 @@ import {
   File,
   FileText,
   FileAudio,
-  FileImage
+  FileImage,
+  Smile
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ChatType, MessageType } from '@/contexts/ChatContext';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface ChatActionsProps {
   chat: ChatType;
   onDelete: (chatId: string) => void;
   onToggleFavorite: (chatId: string) => void;
   onPinMessage: (messageId: string, duration: string) => void;
-  onSearchMessages: (query: string) => void;
+  onSearchMessages: (query: string) => MessageType[];
   onFileUpload: (file: File) => void;
+  onInsertEmoji: (emoji: string) => void;
   isFavorite: boolean;
+  scrollToMessage?: (messageId: string) => void;
 }
 
 export const ChatActions: React.FC<ChatActionsProps> = ({
@@ -62,7 +69,9 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
   onPinMessage,
   onSearchMessages,
   onFileUpload,
-  isFavorite
+  onInsertEmoji,
+  isFavorite,
+  scrollToMessage
 }) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
@@ -70,14 +79,26 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<MessageType | null>(null);
   const [pinDuration, setPinDuration] = useState('1h');
+  const [searchResults, setSearchResults] = useState<MessageType[]>([]);
+  const [noResultsFound, setNoResultsFound] = useState(false);
   const { toast } = useToast();
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { theme } = useTheme();
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      onSearchMessages(searchQuery);
-      setIsSearchDialogOpen(false);
+      const results = onSearchMessages(searchQuery);
+      setSearchResults(results);
+      setNoResultsFound(results.length === 0);
+      
+      if (results.length > 0 && scrollToMessage) {
+        // Close dialog and scroll to first result after a small delay to ensure dialog is closed
+        setIsSearchDialogOpen(false);
+        setTimeout(() => {
+          scrollToMessage(results[0].id);
+        }, 300);
+      }
     }
   };
 
@@ -105,7 +126,6 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // In a real app, we'd upload this to a storage service
       onFileUpload(file);
       
       toast({
@@ -222,6 +242,42 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
                 className="mt-1"
               />
             </div>
+            
+            {noResultsFound && (
+              <div className="text-center py-2 text-red-500">
+                No se encontraron mensajes que coincidan con tu búsqueda.
+              </div>
+            )}
+            
+            {searchResults.length > 0 && (
+              <div className="max-h-40 overflow-y-auto border rounded-md p-2">
+                <p className="text-sm font-medium mb-2">
+                  {searchResults.length} {searchResults.length === 1 ? 'resultado' : 'resultados'} encontrados:
+                </p>
+                <div className="space-y-2">
+                  {searchResults.map(msg => (
+                    <div 
+                      key={msg.id}
+                      className="p-2 rounded-md bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                      onClick={() => {
+                        if (scrollToMessage) {
+                          setIsSearchDialogOpen(false);
+                          setTimeout(() => {
+                            scrollToMessage(msg.id);
+                          }, 300);
+                        }
+                      }}
+                    >
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </p>
+                      <p className="text-sm truncate dark:text-white">{msg.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsSearchDialogOpen(false)}>Cancelar</Button>
               <Button type="submit">Buscar</Button>
@@ -303,6 +359,22 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Emoji picker popover */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon" className="ml-1">
+            <Smile className="h-5 w-5" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0 border-none shadow-xl" align="end">
+          <Picker 
+            data={data} 
+            onEmojiSelect={(emoji: any) => onInsertEmoji(emoji.native)}
+            theme={theme === 'dark' ? 'dark' : 'light'}
+          />
+        </PopoverContent>
+      </Popover>
     </>
   );
 };

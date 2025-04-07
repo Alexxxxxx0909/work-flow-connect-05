@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from '@/components/ui/use-toast';
@@ -296,19 +297,36 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const sendFileMessage = async (chatId: string, file: File) => {
     if (!currentUser) return;
     
-    // En un caso real, aquí subiríamos el archivo a un servicio de almacenamiento 
-    // y obtendríamos la URL
-    const fakeUploadUrl = `https://storage.example.com/files/${file.name}`;
+    // Simulamos la carga del archivo (en un caso real se cargaría a un servicio de almacenamiento)
+    const fileType = file.type;
+    const fileName = file.name;
+    
+    // Crear URL ficticia para simular el almacenamiento
+    const fileUrl = URL.createObjectURL(file);
+    
+    // Determinar el mensaje según el tipo de archivo
+    let contentPrefix = "[Archivo adjunto]";
+    if (fileType.includes('image')) {
+      contentPrefix = "[Imagen]";
+    } else if (fileType.includes('audio')) {
+      contentPrefix = "[Audio]";
+    } else if (fileType.includes('video')) {
+      contentPrefix = "[Video]";
+    } else if (fileType.includes('pdf') || fileType.includes('document')) {
+      contentPrefix = "[Documento]";
+    } else if (fileType.includes('zip') || fileType.includes('rar')) {
+      contentPrefix = "[Archivo comprimido]";
+    }
     
     // Crear el mensaje con la información del archivo
     const fileMessage: MessageType = {
       id: `msg_${Date.now()}`,
       senderId: currentUser.id,
-      content: `[Archivo adjunto] ${file.name}`,
+      content: `${contentPrefix} ${fileName}`,
       timestamp: Date.now(),
-      fileUrl: fakeUploadUrl,
-      fileName: file.name,
-      fileType: file.type
+      fileUrl: fileUrl,
+      fileName: fileName,
+      fileType: fileType
     };
     
     setChats(prevChats => {
@@ -322,6 +340,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
         return chat;
       });
+    });
+    
+    toast({
+      title: "Archivo enviado",
+      description: `${fileName} se ha enviado correctamente`
     });
   };
 
