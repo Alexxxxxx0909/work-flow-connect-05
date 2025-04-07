@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 
 export type UserType = {
@@ -13,7 +14,7 @@ export type UserType = {
 type AuthContextType = {
   currentUser: UserType | null;
   isLoggedIn: boolean;
-  isLoading: boolean;
+  isLoading: boolean; // Asegurando que isLoading está definido
   login: (email: string, password: string) => Promise<UserType | undefined>;
   register: (name: string, email: string, password: string, role: 'freelancer' | 'client') => Promise<UserType | undefined>;
   logout: () => void;
@@ -91,7 +92,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email,
         photoURL: '',
         bio: '',
-        skills: [],
+        skills: [], // Asegurando que skills siempre es un array
         role // This is now properly typed
       };
     

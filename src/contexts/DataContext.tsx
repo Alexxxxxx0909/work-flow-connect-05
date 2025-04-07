@@ -1,4 +1,3 @@
-
 // Add the missing getAllUsers function to DataContextType
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { JobType } from './JobContext';

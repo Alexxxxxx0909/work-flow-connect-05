@@ -26,9 +26,9 @@ const queryClient = new QueryClient();
 
 // Componente para rutas protegidas
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, isLoading } = useAuth();
   
-  if (loading) {
+  if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
   }
   
@@ -41,9 +41,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Componente para rutas públicas (solo accesibles cuando no hay sesión)
 const PublicOnlyRoute = ({ children }: { children: React.ReactNode }) => {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, isLoading } = useAuth();
   
-  if (loading) {
+  if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
   }
   

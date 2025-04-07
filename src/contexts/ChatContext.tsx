@@ -1,6 +1,7 @@
 
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { toast } from '@/components/ui/use-toast';
 
 export type MessageType = {
   id: string;
@@ -16,6 +17,8 @@ export type ChatType = {
   messages: MessageType[];
   isGroup: boolean;
   lastMessage?: MessageType;
+  pendingApproval?: boolean; // Para solicitudes de chat pendientes
+  rejected?: boolean; // Para solicitudes rechazadas
 };
 
 interface ChatContextType {
@@ -27,6 +30,11 @@ interface ChatContextType {
   getChat: (chatId: string) => ChatType | undefined;
   loadingChats: boolean;
   onlineUsers: string[]; // IDs de usuarios online
+  requestChat: (userId: string) => string; // Solicitud de nuevo chat
+  approveChat: (chatId: string) => void; // Aprobar solicitud
+  rejectChat: (chatId: string) => void; // Rechazar solicitud
+  isChatApproved: (chatId: string) => boolean; // Verificar si el chat está aprobado
+  isChatRejected: (chatId: string) => boolean; // Verificar si el chat está rechazado
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -232,6 +240,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     return chats.find(chat => chat.id === chatId);
   };
 
+  const isChatApproved = (chatId: string) => {
+    const chat = getChat(chatId);
+    if (!chat) return false;
+    return !chat.pendingApproval;
+  };
+
+  const isChatRejected = (chatId: string) => {
+    const chat = getChat(chatId);
+    if (!chat) return false;
+    return !!chat.rejected;
+  };
+
   const sendMessage = (chatId: string, content: string) => {
     if (!currentUser) return;
     
@@ -258,6 +278,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // En un caso real, aquí enviaríamos el mensaje a Firebase y notificaríamos con Socket.io
   };
 
+  // Función para crear un nuevo chat
   const createChat = (participantIds: string[], name = '') => {
     if (!currentUser) return;
     
@@ -280,6 +301,91 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // En un caso real, aquí crearíamos el chat en Firebase
   };
 
+  // Nueva función para solicitar un chat privado
+  const requestChat = (userId: string) => {
+    if (!currentUser) throw new Error('Usuario no autenticado');
+
+    // Verificar si ya existe un chat con este usuario
+    const existingChat = chats.find(chat => 
+      !chat.isGroup && 
+      chat.participants.includes(currentUser.id) && 
+      chat.participants.includes(userId)
+    );
+
+    if (existingChat) {
+      setActiveChat(existingChat);
+      return existingChat.id;
+    }
+
+    // Crear nuevo chat pendiente de aprobación
+    const newChatId = `chat_${Date.now()}`;
+    const newChat: ChatType = {
+      id: newChatId,
+      name: '',
+      participants: [currentUser.id, userId],
+      messages: [{
+        id: `msg_${Date.now()}`,
+        senderId: currentUser.id,
+        content: '¡Hola! Me gustaría chatear contigo.',
+        timestamp: Date.now()
+      }],
+      isGroup: false,
+      pendingApproval: true
+    };
+
+    // Actualizar con el último mensaje
+    newChat.lastMessage = newChat.messages[0];
+    
+    setChats(prevChats => [...prevChats, newChat]);
+    setActiveChat(newChat);
+    
+    // Mostrar notificación
+    toast({
+      title: "Solicitud enviada",
+      description: "Se ha enviado una solicitud para iniciar un chat"
+    });
+    
+    return newChatId;
+  };
+
+  // Aprobar una solicitud de chat
+  const approveChat = (chatId: string) => {
+    setChats(prevChats => prevChats.map(chat => {
+      if (chat.id === chatId) {
+        return {
+          ...chat,
+          pendingApproval: false,
+          rejected: false
+        };
+      }
+      return chat;
+    }));
+    
+    toast({
+      title: "Solicitud aceptada",
+      description: "Ahora puedes chatear con este usuario"
+    });
+  };
+
+  // Rechazar una solicitud de chat
+  const rejectChat = (chatId: string) => {
+    setChats(prevChats => prevChats.map(chat => {
+      if (chat.id === chatId) {
+        return {
+          ...chat,
+          pendingApproval: false,
+          rejected: true
+        };
+      }
+      return chat;
+    }));
+    
+    toast({
+      title: "Solicitud rechazada",
+      description: "Has rechazado esta solicitud de chat"
+    });
+  };
+
   return (
     <ChatContext.Provider
       value={{
@@ -290,7 +396,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         createChat,
         getChat,
         loadingChats,
-        onlineUsers
+        onlineUsers,
+        requestChat,
+        approveChat,
+        rejectChat,
+        isChatApproved,
+        isChatRejected
       }}
     >
       {children}

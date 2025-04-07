@@ -15,13 +15,25 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Plus, UserPlus, Users, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ChatGroupForm } from '@/components/ChatGroupForm';
 import { toast } from '@/components/ui/use-toast';
+import { UserSearchDialog } from '@/components/UserSearchDialog';
+import { ChatRequestActions } from '@/components/ChatRequestActions';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 
 const ChatsPage = () => {
-  const { chats, activeChat, setActiveChat, sendMessage, onlineUsers } = useChat();
+  const { 
+    chats, 
+    activeChat, 
+    setActiveChat, 
+    sendMessage, 
+    onlineUsers, 
+    isChatApproved,
+    isChatRejected 
+  } = useChat();
   const { currentUser } = useAuth();
   const { getUserById } = useData();
   const [messageText, setMessageText] = useState('');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isSearchingUser, setIsSearchingUser] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
@@ -70,7 +82,7 @@ const ChatsPage = () => {
   };
   
   const handleSendMessage = () => {
-    if (!activeChat || !messageText.trim()) return;
+    if (!activeChat || !messageText.trim() || !isChatApproved(activeChat.id)) return;
     
     sendMessage(activeChat.id, messageText);
     setMessageText('');
@@ -137,15 +149,12 @@ const ChatsPage = () => {
                             variant="outline" 
                             size="icon" 
                             className="rounded-full"
-                            onClick={() => toast({
-                              title: "Próximamente",
-                              description: "Esta función estará disponible pronto"
-                            })}
+                            onClick={() => setIsSearchingUser(true)}
                           >
                             <UserPlus className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Nuevo mensaje</TooltipContent>
+                        <TooltipContent>Buscar usuarios</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -166,17 +175,17 @@ const ChatsPage = () => {
                 {filteredChats.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-4">
                     {searchQuery ? (
-                      <p className="text-gray-500">No se encontraron conversaciones</p>
+                      <p className="text-gray-500 dark:text-gray-400">No se encontraron conversaciones</p>
                     ) : (
                       <>
-                        <p className="text-gray-500">No tienes ninguna conversación aún</p>
+                        <p className="text-gray-500 dark:text-gray-400">No tienes ninguna conversación aún</p>
                         <Button 
                           variant="link" 
-                          className="mt-2 text-wfc-purple"
-                          onClick={() => setIsCreatingGroup(true)}
+                          className="mt-2 text-wfc-purple dark:text-wfc-purple-light"
+                          onClick={() => setIsSearchingUser(true)}
                         >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Crear un chat
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Buscar usuarios
                         </Button>
                       </>
                     )}
@@ -187,7 +196,8 @@ const ChatsPage = () => {
                       <div
                         key={chat.id}
                         className={`p-3 flex items-start space-x-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors rounded-md
-                          ${activeChat?.id === chat.id ? 'bg-wfc-purple/10 border-l-4 border-wfc-purple' : ''}
+                          ${activeChat?.id === chat.id ? 'bg-wfc-purple/10 border-l-4 border-wfc-purple dark:bg-wfc-purple/20' : ''}
+                          ${chat.pendingApproval && chat.participants[0] !== currentUser?.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}
                         `}
                         onClick={() => setActiveChat(chat)}
                       >
@@ -206,20 +216,27 @@ const ChatsPage = () => {
                             <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800
                               ${isUserOnline(chat.participants.find((id) => id !== currentUser?.id)) 
                                 ? 'bg-green-500' 
-                                : 'bg-gray-300'}
+                                : 'bg-gray-300 dark:bg-gray-600'}
                             `} />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between">
-                            <h3 className="font-medium leading-tight truncate">{getChatName(chat)}</h3>
+                            <h3 className="font-medium leading-tight truncate dark:text-white">
+                              {getChatName(chat)}
+                              {chat.pendingApproval && chat.participants[0] !== currentUser?.id && (
+                                <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800">
+                                  Nueva solicitud
+                                </Badge>
+                              )}
+                            </h3>
                             {chat.lastMessage && (
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
                                 {formatTime(chat.lastMessage.timestamp)}
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-500 truncate mt-1">
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
                             {chat.lastMessage 
                               ? chat.lastMessage.content 
                               : 'No hay mensajes aún'}
@@ -267,8 +284,8 @@ const ChatsPage = () => {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <h2 className="font-semibold truncate">{getChatName(activeChat)}</h2>
-                    <p className="text-xs text-gray-500">
+                    <h2 className="font-semibold truncate dark:text-white">{getChatName(activeChat)}</h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       {activeChat.isGroup 
                         ? `${activeChat.participants.length} participantes` 
                         : isUserOnline(activeChat.participants.find((id) => id !== currentUser?.id))
@@ -279,12 +296,20 @@ const ChatsPage = () => {
                   </div>
                 </div>
                 
+                {/* Display rejected message alert if relevant */}
+                {isChatRejected(activeChat.id) && (
+                  <Alert variant="destructive" className="m-4">
+                    <AlertTitle>Solicitud rechazada</AlertTitle>
+                    <p>El usuario ha rechazado tu solicitud de chat.</p>
+                  </Alert>
+                )}
+                
                 {/* Messages */}
                 <ScrollArea id="messages-container" className="flex-1 p-4">
                   {activeChat.messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center">
-                      <p className="text-gray-500">No hay mensajes aún</p>
-                      <p className="text-sm text-gray-400 mt-2">Envía un mensaje para iniciar la conversación</p>
+                      <p className="text-gray-500 dark:text-gray-400">No hay mensajes aún</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Envía un mensaje para iniciar la conversación</p>
                     </div>
                   ) : (
                     <div className="space-y-6">
@@ -301,7 +326,7 @@ const ChatsPage = () => {
                           <React.Fragment key={message.id}>
                             {showDateSeparator && (
                               <div className="flex justify-center my-4">
-                                <div className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full text-xs text-gray-500">
+                                <div className="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full text-xs text-gray-500 dark:text-gray-400">
                                   {formatDate(message.timestamp)}
                                 </div>
                               </div>
@@ -319,13 +344,13 @@ const ChatsPage = () => {
                               
                               <div className={`max-w-[80%]`}>
                                 {!isCurrentUser && activeChat.isGroup && (
-                                  <p className="text-xs text-gray-500 mb-1">{sender?.name}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{sender?.name}</p>
                                 )}
                                 <div 
                                   className={`rounded-lg px-4 py-2 inline-block
                                     ${isCurrentUser 
                                       ? 'bg-wfc-purple text-white rounded-tr-none' 
-                                      : 'bg-gray-100 dark:bg-gray-700 rounded-tl-none'}
+                                      : 'bg-gray-100 dark:bg-gray-700 rounded-tl-none dark:text-white'}
                                   `}
                                 >
                                   <p className="break-words">{message.content}</p>
@@ -342,30 +367,43 @@ const ChatsPage = () => {
                   )}
                 </ScrollArea>
                 
-                {/* Message input area */}
-                <div className="p-4 border-t">
-                  <div className="flex space-x-2">
-                    <Input
-                      placeholder="Escribe un mensaje..."
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
-                        }
-                      }}
-                      className="flex-1"
-                    />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!messageText.trim()}
-                      className="bg-wfc-purple hover:bg-wfc-purple-medium"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
+                {/* Chat request actions for pending approval */}
+                {activeChat.pendingApproval && 
+                 activeChat.participants[0] !== currentUser?.id && 
+                 !isChatRejected(activeChat.id) && (
+                  <div className="p-4 border-t">
+                    <ChatRequestActions chatId={activeChat.id} />
                   </div>
-                </div>
+                )}
+                
+                {/* Message input area - only show if chat is approved or user is sender */}
+                {(!activeChat.pendingApproval || activeChat.participants[0] === currentUser?.id) && 
+                  !isChatRejected(activeChat.id) && (
+                  <div className="p-4 border-t">
+                    <div className="flex space-x-2">
+                      <Input
+                        placeholder="Escribe un mensaje..."
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        className="flex-1 dark:bg-gray-800 dark:text-white dark:border-gray-700"
+                        disabled={activeChat.pendingApproval && !isChatApproved(activeChat.id)}
+                      />
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!messageText.trim() || (activeChat.pendingApproval && !isChatApproved(activeChat.id))}
+                        className="bg-wfc-purple hover:bg-wfc-purple-medium dark:bg-wfc-purple dark:hover:bg-wfc-purple-medium"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-4">
@@ -379,18 +417,28 @@ const ChatsPage = () => {
                     Ver contactos
                   </Button>
                 )}
-                <h2 className="text-xl font-semibold">Selecciona un chat</h2>
-                <p className="text-gray-500 mt-2">
+                <h2 className="text-xl font-semibold dark:text-white">Selecciona un chat</h2>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">
                   Elige una conversación de la lista o inicia una nueva
                 </p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4"
-                  onClick={() => setIsCreatingGroup(true)}
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Crear chat grupal
-                </Button>
+                <div className="flex space-x-4 mt-6">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsCreatingGroup(true)}
+                    className="dark:border-gray-700 dark:text-gray-300"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Crear chat grupal
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    onClick={() => setIsSearchingUser(true)}
+                    className="bg-wfc-purple hover:bg-wfc-purple-medium"
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Buscar usuarios
+                  </Button>
+                </div>
               </div>
             )}
           </Card>
@@ -406,6 +454,12 @@ const ChatsPage = () => {
           <ChatGroupForm onClose={() => setIsCreatingGroup(false)} />
         </DialogContent>
       </Dialog>
+
+      {/* User search dialog */}
+      <UserSearchDialog 
+        isOpen={isSearchingUser}
+        onClose={() => setIsSearchingUser(false)}
+      />
     </MainLayout>
   );
 };
