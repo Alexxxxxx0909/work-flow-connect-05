@@ -1,158 +1,122 @@
+import React from "react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+// Remove the incorrect import from @/components/ui/icons
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from '@/components/ui/use-toast';
-import { Icons } from '@/components/ui/icons';
+const formSchema = z.object({
+  name: z.string().min(2, {
+    message: "Name must be at least 2 characters."
+  }),
+  email: z.string().email({
+    message: "Please enter a valid email address."
+  }),
+  password: z.string().min(8, {
+    message: "Password must be at least 8 characters."
+  })
+});
 
 const Register = () => {
+  const { toast } = useToast();
+  const { signUp } = useAuth();
   const navigate = useNavigate();
-  const { register } = useAuth();
-  
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [userRole, setUserRole] = useState<'freelancer' | 'client'>('freelancer');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    if (password !== confirmPassword) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Las contraseñas no coinciden"
-      });
-      setIsLoading(false);
-      return;
-    }
-    
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema)
+  });
+
+  async function onSubmit(data: z.infer<typeof formSchema>) {
     try {
-      await register(name, email, password, userRole);
+      await signUp(data.email, data.password, data.name);
       toast({
-        title: "Registro exitoso",
-        description: "Tu cuenta ha sido creada correctamente"
+        title: "Registration successful!",
+        description: "You have successfully registered.",
       });
-      navigate("/");
+      navigate("/login");
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Error al registrarse",
-        description: error instanceof Error ? error.message : "Ha ocurrido un error inesperado"
+        title: "Oh no! Something went wrong.",
+        description: "There was a problem with your registration. Please try again.",
       });
-    } finally {
-      setIsLoading(false);
     }
-  };
-  
+  }
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex justify-center mb-6">
-            <Link to="/">
-              <h1 className="font-bold text-3xl bg-gradient-to-r from-wfc-purple to-wfc-purple-light bg-clip-text text-transparent">
-                WorkFlowConnect
-              </h1>
-            </Link>
-          </div>
-          <CardTitle className="text-2xl font-bold text-center">Crear cuenta</CardTitle>
+    <div className="flex justify-center items-center h-screen bg-gray-100">
+      <Card className="w-[450px] shadow-md">
+        <CardHeader>
+          <CardTitle className="text-2xl text-center">Create an account</CardTitle>
           <CardDescription className="text-center">
-            Ingresa tus datos para registrarte en la plataforma
+            Enter your details below to register.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nombre completo</Label>
-              <Input 
-                id="name" 
-                placeholder="Ingresa tu nombre completo" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                placeholder="Enter your name"
+                type="text"
+                {...register("name")}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Correo electrónico</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="correo@ejemplo.com" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                placeholder="••••••••" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
-              <Input 
-                id="confirmPassword" 
-                type="password" 
-                placeholder="••••••••" 
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de usuario</Label>
-              <RadioGroup 
-                defaultValue="freelancer" 
-                value={userRole}
-                onValueChange={(value) => setUserRole(value as 'freelancer' | 'client')}
-                className="flex flex-col space-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="freelancer" id="freelancer" />
-                  <Label htmlFor="freelancer" className="cursor-pointer">Freelancer - Ofrezco mis servicios</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="client" id="client" />
-                  <Label htmlFor="client" className="cursor-pointer">Cliente - Busco contratar servicios</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full bg-wfc-purple hover:bg-wfc-purple-medium" 
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-                  Registrando...
-                </>
-              ) : (
-                "Crear cuenta"
+              {errors.name && (
+                <p className="text-red-500 text-sm">{errors.name.message}</p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                placeholder="Enter your email"
+                type="email"
+                {...register("email")}
+              />
+              {errors.email && (
+                <p className="text-red-500 text-sm">{errors.email.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                placeholder="Enter your password"
+                type="password"
+                {...register("password")}
+              />
+              {errors.password && (
+                <p className="text-red-500 text-sm">{errors.password.message}</p>
+              )}
+            </div>
+            <Button type="submit" className="w-full">
+              Register
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-center text-gray-500 dark:text-gray-400">
-            ¿Ya tienes una cuenta?{" "}
-            <Link to="/login" className="text-wfc-purple hover:text-wfc-purple-medium">
-              Iniciar sesión
+        <CardFooter className="text-center">
+          <p className="text-sm text-gray-500">
+            Already have an account?{" "}
+            <Link to="/login" className="text-blue-500">
+              Login
             </Link>
           </p>
         </CardFooter>

@@ -24,7 +24,8 @@ import {
   FileImage,
   FileAudio,
   FileText,
-  File
+  File,
+  X
 } from 'lucide-react';
 import { ChatGroupForm } from '@/components/ChatGroupForm';
 import { toast } from '@/components/ui/use-toast';
@@ -62,20 +63,18 @@ const ChatsPage = () => {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement>>({});
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   
-  // Auto-scroll to bottom of messages when new message arrives
   useEffect(() => {
     if (activeChat && messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [activeChat?.messages.length]);
   
-  // Function to get chat name
   const getChatName = (chat) => {
     if (chat.name) return chat.name;
     
     if (!chat.isGroup && currentUser) {
-      // For private chats, show the other user's name
       const otherUserId = chat.participants.find((id) => id !== currentUser.id);
       if (otherUserId) {
         const otherUser = getUserById(otherUserId);
@@ -86,7 +85,6 @@ const ChatsPage = () => {
     return 'Chat';
   };
   
-  // Function to get chat avatar
   const getChatAvatar = (chat) => {
     if (!chat.isGroup && currentUser) {
       const otherUserId = chat.participants.find((id) => id !== currentUser.id);
@@ -98,7 +96,6 @@ const ChatsPage = () => {
     return undefined;
   };
   
-  // For showing the initial in avatar fallback
   const getAvatarFallback = (chat) => {
     const name = getChatName(chat);
     return name.charAt(0).toUpperCase();
@@ -127,21 +124,34 @@ const ChatsPage = () => {
     })));
     
     setShowSearchResults(results.length > 0);
+    
+    if (results.length === 0 && query.trim() !== '') {
+      toast({
+        title: "Búsqueda",
+        description: "No se encontraron mensajes que coincidan con tu búsqueda",
+        variant: "destructive"
+      });
+    }
+    
     return results;
   };
 
-  // Function to scroll to a specific message
   const scrollToMessage = (messageId: string) => {
     setHighlightedMessageId(messageId);
     
     if (messageRefs.current[messageId]) {
       messageRefs.current[messageId].scrollIntoView({ behavior: 'smooth', block: 'center' });
       
-      // Remove highlight after animation
       setTimeout(() => {
         setHighlightedMessageId(null);
       }, 3000);
     }
+  };
+  
+  const closeSearchResults = () => {
+    setShowSearchResults(false);
+    setSearchResults([]);
+    setHighlightedMessageId(null);
   };
   
   const handleDeleteChat = (chatId: string) => {
@@ -167,34 +177,26 @@ const ChatsPage = () => {
   
   const isUserOnline = (userId) => onlineUsers.includes(userId);
 
-  // Handle emoji insertion
   const handleInsertEmoji = (emoji: string) => {
     setMessageText(prev => prev + emoji);
   };
 
-  // Filter and sort chats: favorites first, then by last message time
   const processedChats = () => {
-    // First, filter by search query if any
     let filtered = chats.filter(chat => 
       getChatName(chat).toLowerCase().includes(searchQuery.toLowerCase())
     );
     
-    // Then sort: favorites first, then by last message timestamp (newest first)
     return filtered.sort((a, b) => {
-      // If one is favorite and the other is not, favorite comes first
       if (favoriteChats.includes(a.id) && !favoriteChats.includes(b.id)) return -1;
       if (!favoriteChats.includes(a.id) && favoriteChats.includes(b.id)) return 1;
       
-      // If both have last message, sort by timestamp (newer first)
       if (a.lastMessage && b.lastMessage) {
         return b.lastMessage.timestamp - a.lastMessage.timestamp;
       }
       
-      // If only one has last message, that one comes first
       if (a.lastMessage) return -1;
       if (b.lastMessage) return 1;
       
-      // If neither has last message, keep original order
       return 0;
     });
   };
@@ -203,13 +205,11 @@ const ChatsPage = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  // Function to get active chat's pinned messages
   const getActiveChatPinnedMessages = () => {
     if (!activeChat) return [];
     
     const now = Date.now();
     
-    // Filter messages that are pinned and not expired
     return activeChat.messages.filter(
       msg => msg.isPinned && msg.pinnedUntil && msg.pinnedUntil > now
     );
@@ -218,7 +218,6 @@ const ChatsPage = () => {
   return (
     <MainLayout>
       <div className="h-[calc(100vh-8rem)] flex">
-        {/* Chat list sidebar with toggle */}
         <div className={`relative transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-0 opacity-0' : 'w-full md:w-80 lg:w-96'}`}>
           {!sidebarCollapsed && (
             <Card className="h-full flex flex-col">
@@ -358,7 +357,6 @@ const ChatsPage = () => {
             </Card>
           )}
           
-          {/* Sidebar toggle button */}
           <button 
             onClick={toggleSidebar}
             className="absolute -right-4 top-1/2 transform -translate-y-1/2 bg-wfc-purple text-white rounded-full h-8 w-8 flex items-center justify-center shadow-md z-10 hover:bg-wfc-purple-medium transition-colors"
@@ -368,12 +366,10 @@ const ChatsPage = () => {
           </button>
         </div>
         
-        {/* Chat area */}
         <div className={`flex-1 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'ml-0' : 'ml-4'}`}>
           <Card className="h-full flex flex-col">
             {activeChat ? (
               <>
-                {/* Chat header */}
                 <div className="p-4 border-b flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     {sidebarCollapsed && (
@@ -405,7 +401,6 @@ const ChatsPage = () => {
                     </div>
                   </div>
                   
-                  {/* Chat actions dropdown */}
                   <ChatActions 
                     chat={activeChat}
                     onDelete={handleDeleteChat}
@@ -419,7 +414,6 @@ const ChatsPage = () => {
                   />
                 </div>
                 
-                {/* Display rejected message alert if relevant */}
                 {isChatRejected(activeChat.id) && (
                   <Alert variant="destructive" className="m-4">
                     <AlertTitle>Solicitud rechazada</AlertTitle>
@@ -427,7 +421,6 @@ const ChatsPage = () => {
                   </Alert>
                 )}
                 
-                {/* Pinned messages area */}
                 {getActiveChatPinnedMessages().length > 0 && (
                   <div className="bg-gray-50 dark:bg-gray-800/60 border-b p-2">
                     <div className="flex items-center space-x-2 mb-1">
@@ -451,7 +444,6 @@ const ChatsPage = () => {
                   </div>
                 )}
                 
-                {/* Search results */}
                 {showSearchResults && searchResults.length > 0 && (
                   <div className="bg-gray-50 dark:bg-gray-800/60 border-b p-2">
                     <div className="flex items-center justify-between mb-1">
@@ -464,18 +456,20 @@ const ChatsPage = () => {
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => setShowSearchResults(false)}
+                        onClick={closeSearchResults}
                         className="h-6 w-6 p-0"
                       >
-                        &times;
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                     <div className="space-y-1 max-h-40 overflow-y-auto">
                       {searchResults.map((result, index) => (
                         <div 
                           key={index} 
-                          className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border cursor-pointer"
-                          onClick={() => scrollToMessage(result.messageId)}
+                          className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                          onClick={() => {
+                            scrollToMessage(result.messageId);
+                          }}
                         >
                           <p className="dark:text-white">
                             {result.content.length > 100 
@@ -488,7 +482,6 @@ const ChatsPage = () => {
                   </div>
                 )}
                 
-                {/* Messages */}
                 <ScrollArea 
                   className="flex-1 p-4"
                   ref={messagesContainerRef}>
@@ -503,7 +496,6 @@ const ChatsPage = () => {
                         const isCurrentUser = currentUser && message.senderId === currentUser.id;
                         const sender = getUserById(message.senderId);
                         
-                        // Check if we should display a date separator
                         const showDateSeparator = index === 0 || 
                           new Date(message.timestamp).toDateString() !== 
                           new Date(messages[index - 1].timestamp).toDateString();
@@ -589,7 +581,6 @@ const ChatsPage = () => {
                   )}
                 </ScrollArea>
                 
-                {/* Chat request actions for pending approval */}
                 {activeChat.pendingApproval && 
                  activeChat.participants[0] !== currentUser?.id && 
                  !isChatRejected(activeChat.id) && (
@@ -598,7 +589,6 @@ const ChatsPage = () => {
                   </div>
                 )}
                 
-                {/* Message input area - only show if chat is approved or user is sender */}
                 {(!activeChat.pendingApproval || activeChat.participants[0] === currentUser?.id) && 
                   !isChatRejected(activeChat.id) && (
                   <div className="p-4 border-t">
@@ -646,7 +636,6 @@ const ChatsPage = () => {
                       </Button>
                     </div>
                     
-                    {/* Hidden file input */}
                     <input 
                       type="file" 
                       ref={fileInputRef}
@@ -703,7 +692,6 @@ const ChatsPage = () => {
         </div>
       </div>
       
-      {/* Group chat creation modal */}
       <Dialog open={isCreatingGroup} onOpenChange={setIsCreatingGroup}>
         <DialogContent>
           <DialogHeader>
@@ -713,7 +701,6 @@ const ChatsPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* User search dialog */}
       <UserSearchDialog 
         isOpen={isSearchingUser}
         onClose={() => setIsSearchingUser(false)}

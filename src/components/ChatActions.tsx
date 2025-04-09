@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +40,8 @@ import {
   FileText,
   FileAudio,
   FileImage,
-  Smile
+  Smile,
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ChatType, MessageType } from '@/contexts/ChatContext';
@@ -87,18 +87,30 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      const results = onSearchMessages(searchQuery);
-      setSearchResults(results);
-      setNoResultsFound(results.length === 0);
+    
+    if (!searchQuery.trim()) {
+      return;
+    }
+    
+    const results = onSearchMessages(searchQuery);
+    setSearchResults(results);
+    setNoResultsFound(results.length === 0);
+    
+    if (results.length > 0 && scrollToMessage) {
+      // Close dialog
+      setIsSearchDialogOpen(false);
       
-      if (results.length > 0 && scrollToMessage) {
-        // Close dialog and scroll to first result after a small delay to ensure dialog is closed
-        setIsSearchDialogOpen(false);
-        setTimeout(() => {
-          scrollToMessage(results[0].id);
-        }, 300);
-      }
+      // Short delay to allow dialog to close before scrolling
+      setTimeout(() => {
+        scrollToMessage(results[0].id);
+      }, 300);
+    } else if (results.length === 0) {
+      // Show toast or keep dialog open with message
+      toast({
+        title: "Búsqueda",
+        description: "No se encontraron mensajes que coincidan con tu búsqueda",
+        variant: "destructive"
+      });
     }
   };
 
@@ -127,6 +139,9 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       onFileUpload(file);
+      
+      // Reset the file input so the same file can be selected again
+      e.target.value = '';
       
       toast({
         title: "Archivo adjuntado",
@@ -240,17 +255,18 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="mt-1"
+                autoFocus
               />
             </div>
             
-            {noResultsFound && (
+            {noResultsFound && searchQuery.trim() !== '' && (
               <div className="text-center py-2 text-red-500">
                 No se encontraron mensajes que coincidan con tu búsqueda.
               </div>
             )}
             
             {searchResults.length > 0 && (
-              <div className="max-h-40 overflow-y-auto border rounded-md p-2">
+              <div className="max-h-64 overflow-y-auto border rounded-md p-2">
                 <p className="text-sm font-medium mb-2">
                   {searchResults.length} {searchResults.length === 1 ? 'resultado' : 'resultados'} encontrados:
                 </p>
@@ -279,7 +295,12 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
             )}
             
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsSearchDialogOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => {
+                setIsSearchDialogOpen(false);
+                setSearchQuery('');
+                setNoResultsFound(false);
+                setSearchResults([]);
+              }}>Cancelar</Button>
               <Button type="submit">Buscar</Button>
             </DialogFooter>
           </form>
