@@ -88,6 +88,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Stop event propagation
     
     if (!searchQuery.trim()) {
       return;
@@ -98,18 +99,14 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
     setNoResultsFound(results.length === 0);
     
     if (results.length > 0 && scrollToMessage) {
-      // Close dialog after a short delay
+      // First close dialog safely
+      handleSearchDialogClose();
+      
+      // Then scroll to message after dialog is closed
       setTimeout(() => {
-        setIsSearchDialogOpen(false);
-        setSearchQuery('');
-        
-        // Short delay to allow dialog to close before scrolling
-        setTimeout(() => {
-          scrollToMessage(results[0].id);
-        }, 100);
+        scrollToMessage(results[0].id);
       }, 200);
     } else if (results.length === 0) {
-      // Show toast but leave dialog open
       toast({
         title: "Búsqueda",
         description: "No se encontraron mensajes que coincidan con tu búsqueda",
@@ -192,7 +189,12 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
             )}
           </DropdownMenuItem>
           
-          <DropdownMenuItem onClick={() => setIsSearchDialogOpen(true)}>
+          <DropdownMenuItem 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsSearchDialogOpen(true);
+            }}
+          >
             <Search className="h-4 w-4 mr-2" />
             <span>Buscar en la conversación</span>
           </DropdownMenuItem>
@@ -250,12 +252,26 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
       </AlertDialog>
       
       {/* Search dialog */}
-      <Dialog open={isSearchDialogOpen} onOpenChange={handleSearchDialogClose}>
-        <DialogContent onPointerDownOutside={e => {
-          // Prevent events from bubbling up
-          e.preventDefault();
-          handleSearchDialogClose();
-        }}>
+      <Dialog 
+        open={isSearchDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            handleSearchDialogClose();
+          }
+        }}
+        modal={true}
+      >
+        <DialogContent 
+          className="sm:max-w-md"
+          onPointerDownOutside={(e) => {
+            // Prevent pointer down outside from closing dialog abruptly
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            // Allow escape key to close dialog safely
+            handleSearchDialogClose();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Buscar en la conversación</DialogTitle>
             <DialogDescription>
@@ -291,13 +307,14 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
                     <div 
                       key={msg.id}
                       className="p-2 rounded-md bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         if (scrollToMessage) {
-                          setIsSearchDialogOpen(false);
-                          setSearchQuery('');
+                          handleSearchDialogClose();
                           setTimeout(() => {
                             scrollToMessage(msg.id);
-                          }, 100);
+                          }, 200);
                         }
                       }}
                     >
@@ -315,11 +332,23 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={handleSearchDialogClose}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSearchDialogClose();
+                }}
               >
                 Cancelar
               </Button>
-              <Button type="submit">Buscar</Button>
+              <Button 
+                type="submit"
+                onClick={(e) => {
+                  // Stop event propagation to prevent unexpected closure
+                  e.stopPropagation();
+                }}
+              >
+                Buscar
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

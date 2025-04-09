@@ -46,7 +46,8 @@ const Register = () => {
 
   async function onSubmit(data: z.infer<typeof formSchema>) {
     try {
-      await signUp(data.email, data.password, data.name);
+      // Add null as the fourth argument to match the expected signature
+      await signUp(data.email, data.password, data.name, null);
       toast({
         title: "Registration successful!",
         description: "You have successfully registered.",

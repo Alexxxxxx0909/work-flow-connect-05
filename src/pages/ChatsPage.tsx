@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '@/components/Layout/MainLayout';
 import { useChat } from '@/contexts/ChatContext';
@@ -72,7 +71,6 @@ const ChatsPage = () => {
     }
   }, [activeChat?.messages.length]);
   
-  // Clean up highlighted message after timeout
   useEffect(() => {
     if (highlightedMessageId) {
       const timer = setTimeout(() => {
@@ -125,41 +123,22 @@ const ChatsPage = () => {
     sendFileMessage(activeChat.id, file);
   };
   
-  const handleSearchInChat = (query: string) => {
-    if (!activeChat) return [];
-    
-    const results = searchMessages(activeChat.id, query);
-    
-    setSearchResults(results.map(msg => ({
-      messageId: msg.id,
-      content: msg.content
-    })));
-    
-    setShowSearchResults(results.length > 0);
-    
-    if (results.length === 0 && query.trim() !== '') {
-      toast({
-        title: "Búsqueda",
-        description: "No se encontraron mensajes que coincidan con tu búsqueda",
-        variant: "destructive"
-      });
-    }
-    
-    return results;
-  };
-
   const scrollToMessage = (messageId: string) => {
     setHighlightedMessageId(messageId);
     
     if (messageRefs.current[messageId]) {
-      messageRefs.current[messageId].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      requestAnimationFrame(() => {
+        messageRefs.current[messageId]?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      });
     }
   };
   
   const closeSearchResults = () => {
     setShowSearchResults(false);
     setSearchResults([]);
-    setHighlightedMessageId(null);
   };
   
   const handleDeleteChat = (chatId: string) => {
@@ -223,6 +202,29 @@ const ChatsPage = () => {
     );
   };
   
+  const handleSearchInChat = (query: string) => {
+    if (!activeChat) return [];
+    
+    const results = searchMessages(activeChat.id, query);
+    
+    setSearchResults(results.map(msg => ({
+      messageId: msg.id,
+      content: msg.content
+    })));
+    
+    setShowSearchResults(results.length > 0);
+    
+    if (results.length === 0 && query.trim() !== '') {
+      toast({
+        title: "Búsqueda",
+        description: "No se encontraron mensajes que coincidan con tu búsqueda",
+        variant: "destructive"
+      });
+    }
+    
+    return results;
+  };
+
   return (
     <MainLayout>
       <div className="h-[calc(100vh-8rem)] flex">
