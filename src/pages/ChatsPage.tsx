@@ -134,6 +134,8 @@ const ChatsPage = () => {
         });
       });
     }
+    
+    closeSearchResults();
   };
   
   const closeSearchResults = () => {
@@ -143,6 +145,9 @@ const ChatsPage = () => {
   
   const handleDeleteChat = (chatId: string) => {
     deleteChat(chatId);
+    if (window.innerWidth < 768) {
+      setSidebarCollapsed(false);
+    }
   };
   
   const formatTime = (timestamp) => {
@@ -207,14 +212,14 @@ const ChatsPage = () => {
     
     const results = searchMessages(activeChat.id, query);
     
-    setSearchResults(results.map(msg => ({
-      messageId: msg.id,
-      content: msg.content
-    })));
-    
-    setShowSearchResults(results.length > 0);
-    
-    if (results.length === 0 && query.trim() !== '') {
+    if (results.length > 0) {
+      setSearchResults(results.map(msg => ({
+        messageId: msg.id,
+        content: msg.content
+      })));
+      
+      setShowSearchResults(true);
+    } else if (query.trim() !== '') {
       toast({
         title: "Búsqueda",
         description: "No se encontraron mensajes que coincidan con tu búsqueda",
@@ -466,7 +471,10 @@ const ChatsPage = () => {
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={closeSearchResults}
+                        onClick={e => {
+                          e.preventDefault();
+                          closeSearchResults();
+                        }}
                         className="h-6 w-6 p-0"
                       >
                         <X className="h-4 w-4" />
@@ -477,7 +485,8 @@ const ChatsPage = () => {
                         <div 
                           key={index} 
                           className="text-sm bg-white dark:bg-gray-700 rounded p-2 shadow-sm border cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                          onClick={() => {
+                          onClick={e => {
+                            e.preventDefault();
                             scrollToMessage(result.messageId);
                           }}
                         >
