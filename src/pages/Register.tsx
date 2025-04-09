@@ -1,3 +1,4 @@
+
 import React from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -32,7 +33,7 @@ const formSchema = z.object({
 
 const Register = () => {
   const { toast } = useToast();
-  const { signUp } = useAuth();
+  const { register: signUp } = useAuth();
   const navigate = useNavigate();
 
   const {

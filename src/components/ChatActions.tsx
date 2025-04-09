@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,21 +98,32 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
     setNoResultsFound(results.length === 0);
     
     if (results.length > 0 && scrollToMessage) {
-      // Close dialog
-      setIsSearchDialogOpen(false);
-      
-      // Short delay to allow dialog to close before scrolling
+      // Close dialog after a short delay
       setTimeout(() => {
-        scrollToMessage(results[0].id);
-      }, 300);
+        setIsSearchDialogOpen(false);
+        setSearchQuery('');
+        
+        // Short delay to allow dialog to close before scrolling
+        setTimeout(() => {
+          scrollToMessage(results[0].id);
+        }, 100);
+      }, 200);
     } else if (results.length === 0) {
-      // Show toast or keep dialog open with message
+      // Show toast but leave dialog open
       toast({
         title: "Búsqueda",
         description: "No se encontraron mensajes que coincidan con tu búsqueda",
         variant: "destructive"
       });
     }
+  };
+
+  // Clean up function to reset states when dialog closes
+  const handleSearchDialogClose = () => {
+    setIsSearchDialogOpen(false);
+    setSearchQuery('');
+    setNoResultsFound(false);
+    setSearchResults([]);
   };
 
   const handlePinMessage = () => {
@@ -238,8 +250,12 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
       </AlertDialog>
       
       {/* Search dialog */}
-      <Dialog open={isSearchDialogOpen} onOpenChange={setIsSearchDialogOpen}>
-        <DialogContent>
+      <Dialog open={isSearchDialogOpen} onOpenChange={handleSearchDialogClose}>
+        <DialogContent onPointerDownOutside={e => {
+          // Prevent events from bubbling up
+          e.preventDefault();
+          handleSearchDialogClose();
+        }}>
           <DialogHeader>
             <DialogTitle>Buscar en la conversación</DialogTitle>
             <DialogDescription>
@@ -278,9 +294,10 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
                       onClick={() => {
                         if (scrollToMessage) {
                           setIsSearchDialogOpen(false);
+                          setSearchQuery('');
                           setTimeout(() => {
                             scrollToMessage(msg.id);
-                          }, 300);
+                          }, 100);
                         }
                       }}
                     >
@@ -295,12 +312,13 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
             )}
             
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => {
-                setIsSearchDialogOpen(false);
-                setSearchQuery('');
-                setNoResultsFound(false);
-                setSearchResults([]);
-              }}>Cancelar</Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleSearchDialogClose}
+              >
+                Cancelar
+              </Button>
               <Button type="submit">Buscar</Button>
             </DialogFooter>
           </form>

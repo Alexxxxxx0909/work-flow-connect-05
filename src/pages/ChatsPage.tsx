@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '@/components/Layout/MainLayout';
 import { useChat } from '@/contexts/ChatContext';
@@ -71,6 +72,17 @@ const ChatsPage = () => {
     }
   }, [activeChat?.messages.length]);
   
+  // Clean up highlighted message after timeout
+  useEffect(() => {
+    if (highlightedMessageId) {
+      const timer = setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedMessageId]);
+  
   const getChatName = (chat) => {
     if (chat.name) return chat.name;
     
@@ -141,10 +153,6 @@ const ChatsPage = () => {
     
     if (messageRefs.current[messageId]) {
       messageRefs.current[messageId].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      setTimeout(() => {
-        setHighlightedMessageId(null);
-      }, 3000);
     }
   };
   
