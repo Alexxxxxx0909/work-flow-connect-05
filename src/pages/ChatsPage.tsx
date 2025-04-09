@@ -145,6 +145,7 @@ const ChatsPage = () => {
   
   const handleDeleteChat = (chatId: string) => {
     deleteChat(chatId);
+    
     if (window.innerWidth < 768) {
       setSidebarCollapsed(false);
     }
@@ -219,12 +220,6 @@ const ChatsPage = () => {
       })));
       
       setShowSearchResults(true);
-    } else if (query.trim() !== '') {
-      toast({
-        title: "Búsqueda",
-        description: "No se encontraron mensajes que coincidan con tu búsqueda",
-        variant: "destructive"
-      });
     }
     
     return results;

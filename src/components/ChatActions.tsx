@@ -88,7 +88,6 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     
     if (!searchQuery.trim()) {
       return;
@@ -99,13 +98,18 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
     setNoResultsFound(results.length === 0);
     
     if (results.length > 0 && scrollToMessage) {
-      // First close dialog safely
-      setIsSearchDialogOpen(false);
+      // Store the results first
+      const firstMessageId = results[0].id;
       
-      // Then scroll to message after dialog is closed
+      // Close dialog and clear state
+      handleSearchDialogClose();
+      
+      // Use setTimeout to ensure the dialog is fully closed before scrolling
       setTimeout(() => {
-        scrollToMessage(results[0].id);
-      }, 200);
+        if (scrollToMessage) {
+          scrollToMessage(firstMessageId);
+        }
+      }, 300);
     } else if (results.length === 0) {
       toast({
         title: "Búsqueda",
@@ -195,9 +199,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
           </DropdownMenuItem>
           
           <DropdownMenuItem 
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+            onClick={() => {
               setIsSearchDialogOpen(true);
             }}
           >
@@ -218,9 +220,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
           <DropdownMenuSeparator />
           
           <DropdownMenuItem 
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+            onClick={() => {
               setIsDeleteDialogOpen(true);
             }} 
             className="text-red-600 focus:text-red-600"
@@ -241,7 +241,15 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
       />
       
       {/* Delete confirmation dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog 
+        open={isDeleteDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            // When closing dialog via escape key or clicking outside
+            setIsDeleteDialogOpen(false);
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar conversación?</AlertDialogTitle>
@@ -250,17 +258,13 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={(e) => {
-              e.preventDefault();
-              setIsDeleteDialogOpen(false);
-            }}>
+            <AlertDialogCancel 
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction 
-              onClick={(e) => {
-                e.preventDefault();
-                handleDeleteChat();
-              }}
+              onClick={() => handleDeleteChat()}
               className="bg-red-600 hover:bg-red-700"
             >
               Eliminar
@@ -314,13 +318,18 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
                     <div 
                       key={msg.id}
                       className="p-2 rounded-md bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                      onClick={(e) => {
-                        e.preventDefault();
+                      onClick={() => {
                         if (scrollToMessage) {
-                          setIsSearchDialogOpen(false);
+                          // Store message ID for scrolling
+                          const messageId = msg.id;
+                          
+                          // Close dialog first
+                          handleSearchDialogClose();
+                          
+                          // Wait for dialog to close before scrolling
                           setTimeout(() => {
-                            scrollToMessage(msg.id);
-                          }, 200);
+                            scrollToMessage(messageId);
+                          }, 300);
                         }
                       }}
                     >
@@ -338,20 +347,11 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleSearchDialogClose();
-                }}
+                onClick={() => handleSearchDialogClose()}
               >
                 Cancelar
               </Button>
-              <Button 
-                type="submit"
-                onClick={(e) => {
-                  // Submit is handled by the form onSubmit handler
-                  e.stopPropagation();
-                }}
-              >
+              <Button type="submit">
                 Buscar
               </Button>
             </DialogFooter>
@@ -360,7 +360,15 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
       </Dialog>
       
       {/* Pin message dialog */}
-      <Dialog open={isPinDialogOpen} onOpenChange={setIsPinDialogOpen}>
+      <Dialog 
+        open={isPinDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsPinDialogOpen(false);
+            setSelectedMessage(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Fijar mensaje</DialogTitle>
@@ -405,10 +413,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
                     type="button"
                     variant={pinDuration === option.value ? 'default' : 'outline'}
                     className={pinDuration === option.value ? 'bg-wfc-purple hover:bg-wfc-purple-medium' : ''}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPinDuration(option.value);
-                    }}
+                    onClick={() => setPinDuration(option.value)}
                   >
                     {option.label}
                   </Button>
@@ -420,19 +425,16 @@ export const ChatActions: React.FC<ChatActionsProps> = ({
             <Button 
               type="button" 
               variant="outline" 
-              onClick={(e) => {
-                e.preventDefault();
+              onClick={() => {
                 setIsPinDialogOpen(false);
+                setSelectedMessage(null);
               }}
             >
               Cancelar
             </Button>
             <Button 
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                handlePinMessage();
-              }}
+              onClick={() => handlePinMessage()}
               disabled={!selectedMessage}
               className="bg-wfc-purple hover:bg-wfc-purple-medium"
             >
