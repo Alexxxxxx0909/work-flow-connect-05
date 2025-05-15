@@ -33,11 +33,13 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment, jobId }) => {
         title: "Respuesta enviada",
         description: "Tu respuesta ha sido publicada correctamente"
       });
+      console.log('Reply submitted successfully');
     } catch (error) {
+      console.error('Error submitting reply:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo enviar la respuesta"
+        description: "No se pudo enviar la respuesta, inténtalo de nuevo"
       });
     } finally {
       setIsSubmittingReply(false);
@@ -106,7 +108,10 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment, jobId }) => {
               size="sm"
               variant="outline"
               className="mr-2"
-              onClick={() => setShowReplyForm(false)}
+              onClick={() => {
+                setShowReplyForm(false);
+                setReplyContent('');
+              }}
             >
               Cancelar
             </Button>
@@ -123,7 +128,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment, jobId }) => {
       )}
 
       {/* Respuestas */}
-      {comment.replies.length > 0 && (
+      {comment.replies && comment.replies.length > 0 && (
         <div className="ml-11 space-y-3 border-l-2 border-gray-100 pl-3">
           {comment.replies.map((reply) => (
             <div key={reply.id} className="flex space-x-3">
